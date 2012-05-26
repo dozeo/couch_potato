@@ -31,6 +31,7 @@ module CouchPotato
   
   # Returns a specific database instance
   def self.use(database_name)
+    raise('No Database given!') unless database_name
     @@__databases ||= {}
     @@__databases["#{database_name}"] = Database.new(couchrest_database_for_name!(database_name)) unless @@__databases["#{database_name}"]
     @@__databases["#{database_name}"]
@@ -44,6 +45,7 @@ module CouchPotato
   #  end
   #
   def self.with_database(database_name)
+    raise('No Database given!') unless database_name
     @@__databases ||= {}
     @@__databases["#{database_name}"] = Database.new(couchrest_database_for_name(database_name)) unless @@__databases["#{database_name}"]
     yield(@@__databases["#{database_name}"])
