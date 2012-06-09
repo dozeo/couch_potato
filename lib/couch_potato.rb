@@ -7,7 +7,7 @@ require 'ostruct'
 JSON.create_id = 'ruby_class'
 
 module CouchPotato
-  Config = Struct.new(:database_name, :split_design_documents_per_view, :default_language).new
+  Config = Struct.new(:database_host, :database_name, :split_design_documents_per_view, :default_language).new
   Config.split_design_documents_per_view = false
   Config.default_language = :javascript
 
@@ -64,12 +64,12 @@ module CouchPotato
 
   private
 
-  def self.full_url_to_database(database_name=CouchPotato::Config.database_name)
+  def self.full_url_to_database(database_name=CouchPotato::Config.database_name, database_host = "http://127.0.0.1:5984")
     raise('No Database configured. Set CouchPotato::Config.database_name') unless database_name
     if database_name.match(%r{https?://})
       database_name
     else
-      "http://127.0.0.1:5984/#{database_name}"
+      "#{database_host}/#{database_name}"
     end
   end
 end
