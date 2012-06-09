@@ -10,6 +10,7 @@ module CouchPotato
   Config = Struct.new(:database_host, :database_name, :split_design_documents_per_view, :default_language).new
   Config.split_design_documents_per_view = false
   Config.default_language = :javascript
+  Config.database_host = "http://127.0.0.1:5984"
 
   class NotFound < StandardError; end
 
@@ -26,7 +27,7 @@ module CouchPotato
 
   # Returns the underlying CouchRest database object if you want low level access to your CouchDB. You have to set the CouchPotato::Config.database_name before this works.
   def self.couchrest_database
-    @@__couchrest_database ||= CouchRest.database(full_url_to_database)
+    @@__couchrest_database ||= CouchRest.database(full_url_to_database(CouchPotato::Config.database_name, CouchPotato::Config.database_host))
   end
   
   # Returns a specific database instance
@@ -53,18 +54,18 @@ module CouchPotato
 
   # Returns a CouchRest-Database for directly accessing that functionality.
   def self.couchrest_database_for_name(database_name)
-    CouchRest.database(full_url_to_database(database_name))
+    CouchRest.database(full_url_to_database(database_name, CouchPotato::Config.database_host))
   end
   
   # Creates a CouchRest-Database for directly accessing that functionality.
   def self.couchrest_database_for_name!(database_name)
-    CouchRest.database!(full_url_to_database(database_name))
+    CouchRest.database!(full_url_to_database(database_name, CouchPotato::Config.database_host))
   end
   
 
   private
 
-  def self.full_url_to_database(database_name=CouchPotato::Config.database_name, database_host = "http://127.0.0.1:5984")
+  def self.full_url_to_database(database_name=CouchPotato::Config.database_name, database_host = CouchPotato::Config.database_host)
     raise('No Database configured. Set CouchPotato::Config.database_name') unless database_name
     if database_name.match(%r{https?://})
       database_name
