@@ -19,7 +19,8 @@ module CouchPotato
         update_view unless view_has_been_updated?
         begin
           query_view parameters
-        rescue RestClient::ResourceNotFound
+        # HOTFIX: Update the view if RestClient responds with status 500 (RestClient::InternalServerError), too.
+        rescue RestClient::ResourceNotFound, RestClient::InternalServerError
           update_view
           retry
         end
