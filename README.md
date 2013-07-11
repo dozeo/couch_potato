@@ -4,6 +4,11 @@
 
 [![Build Status](https://secure.travis-ci.org/langalex/couch_potato.png?branch=master)](http://travis-ci.org/langalex/couch_potato)
 
+[![Dependencies](https://gemnasium.com/langalex/couch_potato.png)](https://gemnasium.com/langalex/couch_potato)
+
+[![Code Climate](https://codeclimate.com/github/langalex/couch_potato.png)](https://codeclimate.com/github/langalex/couch_potato)
+
+
 ### Mission
 
 The goal of Couch Potato is to create a minimal framework in order to store and retrieve Ruby objects to/from CouchDB and create and query views.
@@ -22,8 +27,9 @@ Lastly Couch Potato aims to provide a seamless integration with Ruby on Rails, e
 
 ### Supported Environments
 
-* Ruby 1.8.7, 1.9.2
-* CouchDB 1.1.0
+* Ruby 1.9.3, 2.0, Rubinius
+* CouchDB 1.2.0
+* ActiveSupport 3.2, 4.0
 
 (Supported means I run the specs against those before releasing a new gem.)
 
@@ -31,7 +37,7 @@ Lastly Couch Potato aims to provide a seamless integration with Ruby on Rails, e
 
 Couch Potato is hosted as a gem which you can install like this:
 
-    (sudo) gem install couch_potato
+    gem install couch_potato
 
 #### Using with your ruby application:
 
@@ -76,13 +82,6 @@ Create a config/couchdb.yml:
       <<: *default
       database: <%= ENV['DB_NAME'] %>
 
-#### Rails 2.x
-
-Add to your _config/environment.rb_:
-
-    config.gem 'couch_potato', :source => 'http://gemcutter.org'
-    config.frameworks -= [:active_record] # if you switch completely
-
 #### Rails 3.x
 
 Add to your _Gemfile_:
@@ -93,6 +92,7 @@ Add to your _Gemfile_:
     gem 'actionmailer'
     gem 'activemodel'
     gem "couch_potato"
+    gem 'tzinfo'
 
 Note: please make sure that when you run `Date.today.as_json` in the Rails console it returns something like `2010/12/10` and not `2010-12-10` - if it does another gem has overwritten Couch Potato's Date patches - in this case move Couch Potato further down in your Gemfile or whereever you load it.
 
@@ -148,6 +148,7 @@ Properties can have a default value:
       include CouchPotato::Persistence
 
       property :active, :default => true
+      property :signed_up, :default => Proc.new { Time.now }
     end
 
 Now you can save your objects. All database operations are encapsulated in the CouchPotato::Database class. This separates your domain logic from the database access logic which makes it easier to write tests and also keeps you models smaller and cleaner.
@@ -298,6 +299,12 @@ You can also pass in custom map/reduce functions with the custom view spec:
       view :all, :map => "function(doc) { emit(doc.created_at, null)}", :include_docs => true, :type => :custom
     end
 
+commonJS modules can also be used in custom views:
+
+    class User
+      view :all, :map => "function(doc) { emit(null, require("lib/test").test)}", :lib => {:test => "exports.test = 'test'"}, :include_docs => true, :type => :custom
+    end
+
 If you don't want the results to be converted into models the raw view is your friend:
 
     class User
@@ -445,6 +452,9 @@ Couch Potato provides custom RSpec matchers for testing the map and reduce funct
 
       view :by_name, :key => :name
       view :by_age,  :key => :age
+      view :oldest_by_name,
+        :map => "function(doc) { emit(doc.name, doc.age); }",
+        :reduce => "function(keys, values, rereduce) { return Math.max.apply(this, values); }"
     end
 
     #RSpec
@@ -458,9 +468,15 @@ Couch Potato provides custom RSpec matchers for testing the map and reduce funct
       it "should reduce the users to the sum of their age" do
         User.by_age.should reduce([], [23, 22]).to(45)
       end
+
+      it "should map/reduce users to the oldest age by name" do
+        docs = [User.new(:name => "John", :age => 25), User.new(:name => "John", :age => 30), User.new(:name => "Jane", :age => 20)]
+        User.oldest_by_name.should map_reduce(docs).with_options(:group => true).to(
+          {"key" => "John", "value" => 30}, {"key" => "Jane", "value" => 20})
+      end
     end
 
-This will actually run your map/reduce functions in a JavaScript interpreter, passing the arguments as JSON and converting the results back to Ruby. For more examples see the [spec](http://github.com/langalex/couch_potato/blob/master/spec/unit/rspec_matchers_spec.rb).
+This will actually run your map/reduce functions in a JavaScript interpreter, passing the arguments as JSON and converting the results back to Ruby. ```map_reduce``` specs map the input documents, reduce the emitted keys/values, and rereduce the results while also respecting the ```:group``` and ```:group_level``` couchdb options. For more examples see the [spec](http://github.com/langalex/couch_potato/blob/master/spec/unit/rspec_matchers_spec.rb).
 
 In order for this to work you must have the `js` executable in your PATH. This is usually part of the _spidermonkey_ package/port. (On MacPorts that's _spidemonkey_, on Linux it could be one of _libjs_, _libmozjs_ or _libspidermonkey_). When you installed CouchDB via your packet manager Spidermonkey should already be there.
 

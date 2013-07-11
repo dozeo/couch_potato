@@ -5,6 +5,7 @@ require 'json/add/core'
 require 'ostruct'
 
 JSON.create_id = 'ruby_class'
+CouchRest.decode_json_objects = true
 
 module CouchPotato
   Config = Struct.new(:database_host, :database_name, :split_design_documents_per_view, :default_language).new

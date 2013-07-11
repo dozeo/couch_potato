@@ -14,7 +14,6 @@ module CouchPotato
 
     # executes a view and return the results. you pass in a view spec
     # which is usually a result of a SomePersistentClass.some_view call.
-    # also return the total_rows returned by CouchDB as an accessor on the results.
     #
     # Example:
     #
@@ -26,7 +25,6 @@ module CouchPotato
     #   db = CouchPotato.database
     #
     #   db.view(User.all) # => [user1, user2]
-    #   db.view(User.all).total_rows # => 2
     #
     # You can pass the usual parameters you can pass to a couchdb view to the view:
     #
@@ -49,13 +47,14 @@ module CouchPotato
         spec.design_document,
         {spec.view_name => {
           :map => spec.map_function,
-          :reduce => spec.reduce_function}
+          :reduce => spec.reduce_function
+        }
         },
         ({spec.list_name => spec.list_function} unless spec.list_name.nil?),
+        spec.lib,
         spec.language
       ).query_view!(spec.view_parameters)
       processed_results = spec.process_results results
-      processed_results.instance_eval "def total_rows; #{results['total_rows']}; end" if results['total_rows']
       processed_results.each do |document|
         document.database = self if document.respond_to?(:database=)
       end if processed_results.respond_to?(:each)
@@ -146,9 +145,10 @@ module CouchPotato
 
     def bulk_load(ids)
       response = couchrest_database.bulk_load ids
-      existing_rows = response['rows'].select{|row| row.key? 'doc'}
-      docs = existing_rows.map{|row| row["doc"]}
-      docs.each{|doc| doc.database = self}
+      docs = response['rows'].map{|row| row["doc"]}.compact
+      docs.each{|doc|
+        doc.database = self if doc.respond_to?(:database=)
+      }
     end
 
     def create_document(document, validate)
