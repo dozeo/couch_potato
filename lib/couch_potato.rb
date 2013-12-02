@@ -5,6 +5,7 @@ require 'json/add/core'
 require 'ostruct'
 
 JSON.create_id = 'ruby_class'
+CouchRest.decode_json_objects = true
 
 module CouchPotato
   Config = Struct.new(:database_host, :database_name, :split_design_documents_per_view, :default_language).new
@@ -13,6 +14,7 @@ module CouchPotato
   Config.database_host = "http://127.0.0.1:5984"
 
   class NotFound < StandardError; end
+  class Conflict < StandardError; end
 
   # returns all the classes that implement the CouchPotato::Persistence module
   def self.models

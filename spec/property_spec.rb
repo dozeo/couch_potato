@@ -26,9 +26,25 @@ class CuckooClock < Watch
   property :cuckoo
 end
 
+class SportsWatch < Watch
+  property :bpm
+end
+
 describe 'properties' do
   before(:all) do
     recreate_db
+  end
+
+  context 'inheritance' do
+    it 'has access to superclass properties' do
+      expect(CuckooClock.new.cuckoo).to be_nil
+    end
+
+    it "does not have access to properties of 'sibling classes'" do
+      expect {
+        CuckooClock.new.bpm
+      }.to raise_error(NoMethodError)
+    end
   end
 
   it "should allow me to overwrite read accessor and call super" do
@@ -57,6 +73,14 @@ describe 'properties' do
     c.title.should == 3
   end
 
+  it "should persist a big decimal" do
+    require 'bigdecimal'
+    c = BigDecimalContainer.new :number => BigDecimal.new( '42.42' )
+    CouchPotato.database.save_document! c
+    c = CouchPotato.database.load_document c.id
+    c.number.should == BigDecimal.new( '42.42' )
+  end
+
   it "should persist a hash" do
     c = Comment.new :title => {'key' => 'value'}
     CouchPotato.database.save_document! c
@@ -64,11 +88,20 @@ describe 'properties' do
     c.title.should == {'key' => 'value'}
   end
 
+  it "should persist a HashWithIndifferentAccess" do
+    c = Person.new :information => HashWithIndifferentAccess.new({"key" => "value"})
+    CouchPotato.database.save_document! c
+    c = CouchPotato.database.load_document c.id
+    c.information.should == {'key' => 'value'}
+  end
+
   def it_should_persist value
     c = Comment.new :title => value
     CouchPotato.database.save_document! c
     c = CouchPotato.database.load_document c.id
-    c.title.should == value
+    c.title.to_json.should == value.to_json
+    # no id provided in embedded object, need to check yourself for content equality
+    c.title.should_not == value
   end
 
   it "should persist a child class" do
@@ -109,7 +142,7 @@ describe 'properties' do
     p.ship_address = a
     CouchPotato.database.save_document! p
     p = CouchPotato.database.load_document p.id
-    p.ship_address.should === a
+    p.ship_address.to_json.should === a.to_json
   end
 
   it "should persist null for a null " do
@@ -223,7 +256,7 @@ describe 'properties' do
       w = Watch.new :custom_address => [address]
       CouchPotato.database.save_document! w
       w = CouchPotato.database.load_document w.id
-      w.custom_address.should eql([address])
+      w.custom_address.to_json.should eql([address].to_json)
     end
 
     it "should handle nil values" do

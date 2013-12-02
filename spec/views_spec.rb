@@ -105,11 +105,6 @@ describe 'views' do
     @db.view(Build.count(:reduce => true)).should == 0
   end
 
-  it "should return the total_rows" do
-    @db.save_document! Build.new(:state => 'success', :time => '2008-01-01')
-    @db.view(Build.count(:reduce => false)).total_rows.should == 1
-  end
-
   describe "with multiple keys" do
     it "should return the documents with matching keys" do
       build = Build.new(:state => 'success', :time => '2008-01-01')
@@ -125,19 +120,19 @@ describe 'views' do
   end
 
   describe "properties defined" do
-    it "should assign the configured properties" do
+    it "assigns the configured properties" do
       CouchPotato.couchrest_database.save_doc(:state => 'success', :time => '2008-01-01', JSON.create_id.to_sym => 'Build')
-      @db.view(Build.minimal_timeline).first.state.should == 'success'
+      @db.view(Build.minimal_timeline).first.state.should eql('success')
     end
 
-    it "should not assign the properties not configured" do
+    it "does not assign the properties not configured" do
       CouchPotato.couchrest_database.save_doc(:state => 'success', :time => '2008-01-01', JSON.create_id.to_sym => 'Build')
       @db.view(Build.minimal_timeline).first.time.should be_nil
     end
 
-    it "should assign the id even if it is not configured" do
+    it "assigns the id even if it is not configured" do
       id = CouchPotato.couchrest_database.save_doc(:state => 'success', :time => '2008-01-01', JSON.create_id.to_sym => 'Build')['id']
-      @db.view(Build.minimal_timeline).first._id.should == id
+      @db.view(Build.minimal_timeline).first._id.should eql(id)
     end
   end
 
@@ -276,6 +271,17 @@ describe 'views' do
     it "should use the list function passed at runtime" do
       @db.save! Coworker.new(:name => 'joe')
       @db.view(Coworker.all(:list => :append_doe)).first.name.should == 'joe doe'
+    end
+  end
+
+  describe 'with stale views' do
+    it 'does not return deleted documents' do
+      build = Build.new
+      @db.save_document! build
+      @db.view(Build.timeline)
+      @db.destroy build
+
+      expect(@db.view(Build.timeline(:stale => 'ok'))).to be_empty
     end
   end
 end

@@ -14,7 +14,6 @@ module CouchPotato
 
     # executes a view and return the results. you pass in a view spec
     # which is usually a result of a SomePersistentClass.some_view call.
-    # also return the total_rows returned by CouchDB as an accessor on the results.
     #
     # Example:
     #
@@ -26,7 +25,6 @@ module CouchPotato
     #   db = CouchPotato.database
     #
     #   db.view(User.all) # => [user1, user2]
-    #   db.view(User.all).total_rows # => 2
     #
     # You can pass the usual parameters you can pass to a couchdb view to the view:
     #
@@ -49,13 +47,14 @@ module CouchPotato
         spec.design_document,
         {spec.view_name => {
           :map => spec.map_function,
-          :reduce => spec.reduce_function}
+          :reduce => spec.reduce_function
+        }
         },
         ({spec.list_name => spec.list_function} unless spec.list_name.nil?),
+        spec.lib,
         spec.language
       ).query_view!(spec.view_parameters)
       processed_results = spec.process_results results
-      processed_results.instance_eval "def total_rows; #{results['total_rows']}; end" if results['total_rows']
       processed_results.each do |document|
         document.database = self if document.respond_to?(:database=)
       end if processed_results.respond_to?(:each)
@@ -73,13 +72,27 @@ module CouchPotato
       first(spec) || raise(CouchPotato::NotFound)
     end
 
-    # saves a document. returns true on success, false on failure
-    def save_document(document, validate = true)
-      return true unless document.dirty? || document.new?
-      if document.new?
-        create_document(document, validate)
-      else
-        update_document(document, validate)
+    # saves a document. returns true on success, false on failure.
+    # if passed a block will:
+    # * yield the object to be saved to the block and run if once before saving
+    # * on conflict: reload the document, run the block again and retry saving
+    def save_document(document, validate = true, &block)
+      retries = 0
+      begin
+        block.call document if block
+        save_document_without_conflict_handling(document, validate)
+      rescue RestClient::Conflict => e
+        if block
+          document = document.reload
+          if retries == 5
+            raise CouchPotato::Conflict.new
+          else
+            retries += 1
+            retry
+          end
+        else
+          raise e
+        end
       end
     end
     alias_method :save, :save_document
@@ -91,12 +104,12 @@ module CouchPotato
     alias_method :save!, :save_document!
 
     def destroy_document(document)
-      document.run_callbacks :destroy do
-        document._deleted = true
-        couchrest_database.delete_doc document.to_hash
+      begin
+        destroy_document_without_conflict_handling document
+      rescue RestClient::Conflict
+        document = document.reload
+        retry
       end
-      document._id = nil
-      document._rev = nil
     end
     alias_method :destroy, :destroy_document
 
@@ -144,11 +157,30 @@ module CouchPotato
 
     private
 
+    def destroy_document_without_conflict_handling(document)
+      document.run_callbacks :destroy do
+        document._deleted = true
+        couchrest_database.delete_doc document.to_hash
+      end
+      document._id = nil
+      document._rev = nil
+    end
+
+    def save_document_without_conflict_handling(document, validate = true)
+      return true unless document.dirty? || document.new?
+      if document.new?
+        create_document(document, validate)
+      else
+        update_document(document, validate)
+      end
+    end
+
     def bulk_load(ids)
       response = couchrest_database.bulk_load ids
-      existing_rows = response['rows'].select{|row| row.key? 'doc'}
-      docs = existing_rows.map{|row| row["doc"]}
-      docs.each{|doc| doc.database = self}
+      docs = response['rows'].map{|row| row["doc"]}.compact
+      docs.each{|doc|
+        doc.database = self if doc.respond_to?(:database=)
+      }
     end
 
     def create_document(document, validate)

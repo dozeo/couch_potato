@@ -46,7 +46,7 @@ end
 
 describe CouchPotato::Database, 'load' do
 
-  let(:couchrest_db) { stub('couchrest db', :info => nil) }
+  let(:couchrest_db) { stub('couchrest db', :info => nil).as_null_object }
   let(:db) { CouchPotato::Database.new couchrest_db }
 
   it "should raise an exception if nil given" do
@@ -69,15 +69,14 @@ describe CouchPotato::Database, 'load' do
   end
 
   context "when several ids given" do
-
     let(:doc1) { DbTestUser.new }
     let(:doc2) { DbTestUser.new }
     let(:response) do
-      {"rows" => [{}, {"doc" => doc1}, {"doc" => doc2}]}
+      {"rows" => [{'doc' => nil}, {"doc" => doc1}, {"doc" => doc2}]}
     end
 
     before(:each) do
-      couchrest_db.stub(:bulk_load).and_return response
+      couchrest_db.stub(:bulk_load) { response }
     end
 
     it "requests the couchrest bulk method" do
@@ -93,6 +92,18 @@ describe CouchPotato::Database, 'load' do
       db.load(['1', '2', '3']).each do |doc|
         doc.database.should eql(db)
       end
+    end
+
+    it 'does not write itself to a document that has no database= method' do
+      doc1 = stub(:doc1)
+      doc1.stub(:respond_to?).with(:database=) { false }
+      couchrest_db.stub(:bulk_load) do
+        {"rows" => [{'doc' => doc1}]}
+      end
+
+      doc1.should_not_receive(:database=)
+
+      db.load(['1'])
     end
   end
 end
@@ -331,9 +342,10 @@ describe CouchPotato::Database, 'view' do
     CouchPotato::View::ViewQuery.stub(:new => stub('view query', :query_view! => {'rows' => [@result]}))
   end
 
-  it "initialzes a view query with map/reduce/list funtions" do
+  it "initialzes a view query with map/reduce/list/lib funtions" do
     @spec.stub(:design_document => 'design_doc', :view_name => 'my_view',
       :map_function => '<map_code>', :reduce_function => '<reduce_code>',
+      :lib => {:test => '<test_code>'},
       :list_name => 'my_list', :list_function => '<list_code>', :language => 'javascript')
     CouchPotato::View::ViewQuery.should_receive(:new).with(
       @couchrest_db,
@@ -343,21 +355,55 @@ describe CouchPotato::Database, 'view' do
         :reduce => '<reduce_code>'
       }},
       {'my_list' => '<list_code>'},
+      {:test => '<test_code>'},
       'javascript')
     @db.view(@spec)
   end
 
-  it "initialzes a view query with only map/reduce functions" do
+  it "initialzes a view query with map/reduce/list funtions" do
     @spec.stub(:design_document => 'design_doc', :view_name => 'my_view',
       :map_function => '<map_code>', :reduce_function => '<reduce_code>',
-      :list_name => nil, :list_function => nil).as_null_object
+      :lib => nil, :list_name => 'my_list', :list_function => '<list_code>',
+      :language => 'javascript')
     CouchPotato::View::ViewQuery.should_receive(:new).with(
       @couchrest_db,
       'design_doc',
       {'my_view' => {
         :map => '<map_code>',
         :reduce => '<reduce_code>'
-      }}, nil, anything)
+      }},
+      {'my_list' => '<list_code>'},
+      nil,
+      'javascript')
+    @db.view(@spec)
+  end
+
+  it "initialzes a view query with only map/reduce/lib functions" do
+    @spec.stub(:design_document => 'design_doc', :view_name => 'my_view',
+      :map_function => '<map_code>', :reduce_function => '<reduce_code>',
+      :list_name => nil, :list_function => nil,
+      :lib => {:test => '<test_code>'}).as_null_object
+    CouchPotato::View::ViewQuery.should_receive(:new).with(
+      @couchrest_db,
+      'design_doc',
+      {'my_view' => {
+        :map => '<map_code>',
+        :reduce => '<reduce_code>'
+      }}, nil, {:test => '<test_code>'}, anything)
+    @db.view(@spec)
+  end
+
+  it "initialzes a view query with only map/reduce functions" do
+    @spec.stub(:design_document => 'design_doc', :view_name => 'my_view',
+      :map_function => '<map_code>', :reduce_function => '<reduce_code>',
+      :lib => nil, :list_name => nil, :list_function => nil).as_null_object
+    CouchPotato::View::ViewQuery.should_receive(:new).with(
+      @couchrest_db,
+      'design_doc',
+      {'my_view' => {
+        :map => '<map_code>',
+        :reduce => '<reduce_code>'
+      }}, nil, nil, anything)
     @db.view(@spec)
   end
 

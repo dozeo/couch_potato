@@ -43,11 +43,12 @@ module CouchPotato
       private
 
       def accessors_module_for(clazz)
-        unless clazz.const_defined?('AccessorMethods')
-          accessors_module = clazz.const_set('AccessorMethods', Module.new)
+        module_name = "#{clazz.name.to_s.gsub('::', '__')}AccessorMethods"
+        unless clazz.const_defined?(module_name)
+          accessors_module = clazz.const_set(module_name, Module.new)
           clazz.send(:include, accessors_module)
         end
-        clazz.const_get('AccessorMethods')
+        clazz.const_get(module_name)
       end
 
       def define_accessors(base, name, options)
@@ -56,7 +57,11 @@ module CouchPotato
             load_attribute_from_document(name) unless instance_variable_defined?("@#{name}")
             value = instance_variable_get("@#{name}")
             if value.nil? && !options[:default].nil?
-              default = clone_attribute(options[:default])
+              default = if options[:default].respond_to?(:call)
+                options[:default].call
+              else
+                clone_attribute(options[:default])
+              end
               self.instance_variable_set("@#{name}", default)
               default
             else
