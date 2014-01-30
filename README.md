@@ -52,6 +52,11 @@ The server URL will default to http://localhost:5984/ unless specified:
 
     CouchPotato::Config.database_name = "http://example.com:5984/name_of_the_db"
 
+But you can also specify the database host separately from the database name:
+
+    CouchPotato::Config.database_host = "http://example.com:5984"
+    CouchPotato::Config.database_name = "name_of_the_db"
+
 Or with authentication
 
     CouchPotato::Config.database_name = "http://username:password@example.com:5984/name_of_the_db"
@@ -413,6 +418,11 @@ Couch Potato supports accessing multiple CouchDBs:
     end
 
 Unless configured otherwise this would save the customer model to _http://127.0.0.1:5984/couch_customer_.
+
+You can also first retrieve the database instance:
+
+    db = CouchPotato.use('couch_customer')
+    db.save @customer
 
 #### Testing
 

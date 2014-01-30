@@ -31,7 +31,7 @@ module CouchPotato
   def self.couchrest_database
     @@__couchrest_database ||= CouchRest.database(full_url_to_database(CouchPotato::Config.database_name, CouchPotato::Config.database_host))
   end
-  
+
   # Returns a specific database instance
   def self.use(database_name)
     @@__databases ||= {}
@@ -56,12 +56,11 @@ module CouchPotato
   def self.couchrest_database_for_name(database_name)
     CouchRest.database(full_url_to_database(database_name, CouchPotato::Config.database_host))
   end
-  
+
   # Creates a CouchRest-Database for directly accessing that functionality.
   def self.couchrest_database_for_name!(database_name)
-    CouchRest.database!(full_url_to_database(database_name, CouchPotato::Config.database_host))
+    CouchRest.database!(full_url_to_database(database_name))
   end
-  
 
   private
 
